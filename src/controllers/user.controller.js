@@ -1,10 +1,85 @@
 import {asyncHandler} from '../utils/asyncHandler.js';
+import { ApiError } from '../utils/ApiError.js';
+import { User } from '../models/user.model.js';
+import { uploadToCloudinary } from '../utils/cloudinary.js';
+import { ApiResponse } from '../utils/ApiResponse.js';
 
 const registerUser = asyncHandler(async (req, res) => {
-    res.status(200).json({
-        message: "User registered successfully",
-    })
-})
+    //get user detail from frontend
+    //validate user detail (user name empty to nahi hai,email valid hai ya nahi, password strong hai ya nahi etc)
+    //check if user already exist : using email id or username.
+    //check for images ,check for avatar
+    //upload them to cloudinary and get the url , check for avatar if it is successfully uploaded or not to cloudinary
+    // create user object - create entry in database
+    //remove password and refresh token field from response
+    //check for user creation
+    //return response
 
+
+    //1. get user detail from frontend
+    const { username, email, password ,fullName} = req.body;
+    console.log(req.body);
+    console.log("email", email);
+
+    //validate user detail (user name empty to nahi hai,email valid hai ya nahi, password strong hai ya nahi etc)
+    if(
+        [username, email, password, fullName].some(               
+            (field) => field?.trim()==="" || field === undefined || field === null
+            /*this is array method , some method checks if any of the element in the array satisfies the condition 
+            provided in the callback function, here we are checking if any of the field is empty or not*/
+        )
+    ){
+        throw new ApiError(400, "All fields are required");
+    }
+     //check if user already exist : using email id or username.
+    const existedUser = User.findOne({
+        $or : [{ email },{ username }]
+    })
+
+    if(existedUser){
+        throw new ApiError(409, "User already exist with this email or username");
+    }
+
+    //upload them to cloudinary and get the url , check for avatar if it is successfully uploaded or not to cloudinary
+    const avatarLocalPath = req.files?.avatar?.[0]?.path;
+    const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
+
+    if(!avatarLocalPath){
+        throw new ApiError(400, "Avatar file is required");
+    }
+
+    //upload them to cloudinary and get the url , check for avatar if it is successfully uploaded or not to cloudinary
+    const avatar =  await uploadToCloudinary(avatarLocalPath);
+    const coverImage = await uploadToCloudinary(coverImageLocalPath);
+
+    //check again if avatar is successfully uploaded or not to cloudinary
+    if(!avatar){
+        throw new ApiError(400,"Failed to upload avatar to cloudinary")
+    }
+
+    // create user object - create entry in database
+    const user = await User.create({
+        fullName,
+        avatar : avatar.url,
+        coverImage : coverImage?.url || "",
+        email,
+        username : username.toLowerCase(),
+        password
+    })
+
+    //checking if user is successfully created or not then remove password and refresh token field from response
+    const createdUser = await User.findById(user._id).select(
+        "-password -refreshToken"
+    )
+    //check for user creation
+    if(!createdUser){
+        throw new ApiError(500, "Failed to create user");
+    }
+    
+    //return response
+    return res.status(201).json(
+        new ApiResponse(200, createdUser, "User registered successfully")
+    )
+})
 
 export {registerUser}
