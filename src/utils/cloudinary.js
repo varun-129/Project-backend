@@ -17,7 +17,8 @@ export const uploadToCloudinary = async (localFilePath) => {
         resource_type: 'auto', // Automatically detect the file type (image, video, etc.)
     });
     //file has been successfully uploaded to cloudinary
-    console.log('File uploaded to Cloudinary:', response.url);
+    // console.log('File uploaded to Cloudinary:', response.url);
+    fs.unlinkSync(localFilePath); // Remove the locally saved temporary file as it is no longer needed after successful upload
     return response;
 
     

@@ -18,8 +18,10 @@ const registerUser = asyncHandler(async (req, res) => {
 
     //1. get user detail from frontend
     const { username, email, password ,fullName} = req.body;
-    console.log(req.body);
-    console.log("email", email);
+
+    
+    // console.log(req.body);
+    // console.log("email", email);
 
     //validate user detail (user name empty to nahi hai,email valid hai ya nahi, password strong hai ya nahi etc)
     if(
@@ -32,14 +34,15 @@ const registerUser = asyncHandler(async (req, res) => {
         throw new ApiError(400, "All fields are required");
     }
      //check if user already exist : using email id or username.
-    const existedUser = User.findOne({
-        $or : [{ email },{ username }]
+    const existedUser = await User.findOne({
+        $or: [{ email },{ username }]
     })
 
     if(existedUser){
         throw new ApiError(409, "User already exist with this email or username");
     }
 
+    // console.log("req.files", req.files);
     //upload them to cloudinary and get the url , check for avatar if it is successfully uploaded or not to cloudinary
     const avatarLocalPath = req.files?.avatar?.[0]?.path;
     const coverImageLocalPath = req.files?.coverImage?.[0]?.path;
