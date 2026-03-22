@@ -4,6 +4,7 @@ import { User } from '../models/user.model.js';
 import { uploadToCloudinary } from '../utils/cloudinary.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import jwt from 'jsonwebtoken';
+import { deleteFromCloudinary } from "../utils/cloudinaryDelete.js";
 
 const generateAccessAndRefreshTokens = async(userId) => {
     try{
@@ -281,9 +282,11 @@ const getCurrentUser = asyncHandler(async(req,res) => {
     return res
     .status(200)
     .json(
-        200,
-        req.user,
-        "Current user fetched successfully"
+        new ApiResponse(
+            200,
+            req.user,
+            "Current user fetched successfully"
+        )
     )
 })
 
@@ -320,78 +323,162 @@ const updateAccountDetails = asyncHandler(async(req,res) => {
     )
 })
 
-const updateUserAvatar = asyncHandler(async(req,res)=>{
-    const avatarLocalPath = avatar.file?.path;
+const updateAvatar = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id);
 
-    if(!avatarLocalPath){
-        throw new ApiError(400,"Avatar file is missing")
+    if (!user) {
+        throw new ApiError(404, "User not found");
     }
 
-    const avatar = await uploadToCloudinary(avatarLocalPath)
+    const oldAvatarUrl = user.avatar;
 
-    if(!avatar.url){
-        throw new ApiError(400,"Error while uploading avatar")
+    const localFilePath = req.file?.path;
+
+    if (!localFilePath) {
+        throw new ApiError(400, "Avatar file is missing");
     }
 
-    const user = await User.findByIdAndUpdate(
-        req.user._id,
+    // ✅ STEP 1: Upload new avatar FIRST
+    const uploadedAvatar = await uploadToCloudinary(localFilePath);
+
+    if (!uploadedAvatar?.secure_url) {
+        throw new ApiError(500, "Failed to upload avatar");
+    }
+
+    // ✅ STEP 2: Delete old avatar (safe way)
+    if (oldAvatarUrl) {
+        try {
+            await deleteFromCloudinary(oldAvatarUrl);
+        } catch (error) {
+            // Don't break API if delete fails
+            console.log("Old avatar deletion failed:", error.message);
+        }
+    }
+
+    // ✅ STEP 3: Save new avatar (STRING as per your model)
+    user.avatar = uploadedAvatar.secure_url;
+
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(200).json(
+        new ApiResponse(200, user, "Avatar updated successfully")
+    );
+});
+
+const updateCoverImage = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    const oldCoverImageUrl = user.coverImage;
+
+    const localFilePath = req.file?.path;
+
+    if (!localFilePath) {
+        throw new ApiError(400, "Cover image file is missing");
+    }
+
+    // ✅ STEP 1: Upload new cover image
+    const uploadedImage = await uploadToCloudinary(localFilePath);
+
+    if (!uploadedImage?.secure_url) {
+        throw new ApiError(500, "Failed to upload cover image");
+    }
+
+    // ✅ STEP 2: Delete old cover image
+    if (oldCoverImageUrl) {
+        try {
+            await deleteFromCloudinary(oldCoverImageUrl);
+        } catch (error) {
+            console.log("Old cover image deletion failed:", error.message);
+        }
+    }
+
+    // ✅ STEP 3: Save new cover image URL
+    user.coverImage = uploadedImage.secure_url;
+
+    await user.save({ validateBeforeSave: false });
+
+    return res.status(200).json(
+        new ApiResponse(200, user, "Cover image updated successfully")
+    );
+});
+
+const getUserChannelProfile = asyncHandler(async(req, res) => {
+    const {username} = req.params
+
+    if (!username?.trim()) {
+        throw new ApiError(400, "username is missing")
+    }
+
+    const channel = await User.aggregate([
         {
-            $set :{
-                avatar : avatar.url
+            $match: {
+                username: username?.toLowerCase()
             }
         },
         {
-            new : true
-        }
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers"
+            }
+        },
+        {
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo"
+            }
+        },
+        {
+            $addFields: {
+                subscribersCount: {
+                    $size: "$subscribers"
+                },
+                channelsSubscribedToCount: {
+                    $size: "$subscribedTo"
+                },
+                isSubscribed: {
+                    $cond: {
+                        if: {$in: [req.user?._id, "$subscribers.subscriber"]},
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+        {
+            $project: {
+                fullName: 1,
+                username: 1,
+                subscribersCount: 1,
+                channelsSubscribedToCount: 1,
+                isSubscribed: 1,
+                avatar: 1,
+                coverImage: 1,
+                email: 1
 
-    ).select("-password")
+            }
+        }
+    ])
+
+    if (!channel?.length) {
+        throw new ApiError(404, "channel does not exists")
+    }
 
     return res
     .status(200)
     .json(
-        new ApiResponse(
-            200,
-            user,
-            "Avatar updated successfully"
-        )
-    )
-})
-
-const updateUserCoverImage = asyncHandler(async(req,res)=>{
-    const coverImageLocalPath = coverImage.file?.path
-
-    if(!coverImageLocalPath){
-        throw new ApiError(400,"Cover Image file is missing")
-    }
-
-    const coverImage = await User.uploadToCloudinary(coverImageLocalPath)
-
-    if(!coverImage.url){
-        throw new ApiError(400,"Error in uploading coverImage")
-    }
-
-    User.findByIdAndUpdate(
-        req.user?._id,
-        {
-            $set : {
-                coverImage : coverImage.url
-            }
-        },
-        {
-            new : true
-        }
-    ).select("-password")
-
-    return res
-    .status(200)
-    .json(
-        new ApiResponse(
-            200,
-            user,
-            "CoverImage updated successfully"
-        )
+        new ApiResponse(200, channel[0], "User channel fetched successfully")
     )
 })
 
 
-export {registerUser, loginUser, logoutUser, refreshToken,changeCurrentPassword , getCurrentUser, updateAccountDetails , updateUserAvatar , updateUserCoverImage};
+
+
+export {registerUser, loginUser, logoutUser, refreshToken,changeCurrentPassword , getCurrentUser, updateAccountDetails , updateUserAvatar , updateUserCoverImage, getUserChannelProfile};
