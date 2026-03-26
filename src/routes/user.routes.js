@@ -2,7 +2,11 @@ import { Router } from "express";
 import { registerUser,
     loginUser ,
     logoutUser ,
-    refreshToken
+    refreshToken,
+    changeCurrentPassword,
+    getCurrentUser,
+    updateAccountDetails,updateAvatar,updateCoverImage,getUserChannelProfile,
+    getWatchHistory
  } from "../controllers/user.controller.js";
 import { upload } from '../middlewares/multer.middleware.js';
 import { verifyJWT } from "../middlewares/auth.middleware.js";
@@ -32,7 +36,7 @@ router.route("/logout").post(verifyJWT, logoutUser)
 
 router.route("/refresh-token").post(refreshToken)
 
-router.route("/change-password").post(verifyJWT, changePassword)
+router.route("/change-password").post(verifyJWT, changeCurrentPassword)
 
 router.route("/current-user").get(verifyJWT, getCurrentUser)
 

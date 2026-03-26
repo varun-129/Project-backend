@@ -1,0 +1,21 @@
+.playlist-card { cursor: pointer; }
+.playlist-thumb-wrap {
+  position: relative;
+  aspect-ratio: 16/9;
+  overflow: hidden;
+  background: var(--bg-3);
+}
+.playlist-thumb { width: 100%; height: 100%; object-fit: cover; }
+.playlist-thumb-empty {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+}
+.playlist-count {
+  position: absolute;
+  bottom: 0; right: 0;
+  background: rgba(0,0,0,0.85);
+  color: var(--text-0);
+  font-size: 11px;
+  padding: 4px 10px;
+  font-family: var(--font-mono);
+}
