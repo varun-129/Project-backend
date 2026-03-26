@@ -4,8 +4,8 @@ import { registerUser,
     logoutUser ,
     refreshToken
  } from "../controllers/user.controller.js";
-import { upload } from '../middleware/multer.middleware.js';
-import { verifyJWT } from "../middleware/auth.middleware.js";
+import { upload } from '../middlewares/multer.middleware.js';
+import { verifyJWT } from "../middlewares/auth.middleware.js";
 import { get } from "mongoose";
 
 const router = Router();
